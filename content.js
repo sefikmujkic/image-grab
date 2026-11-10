@@ -2,6 +2,10 @@
 // on hover, a hold-to-preview on key Z, and lists every image on the page for the toolbar popup.
 // ruleCandidates() comes from rules.js, loaded first.
 let last = null;
+// If another copy of this extension already runs in this page, leave the on-page UI to it so only
+// one button ever appears and a shortcut press doesn't download twice.
+const UI_ENABLED = !document.documentElement.hasAttribute("data-image-grab-ui");
+if (UI_ENABLED) document.documentElement.setAttribute("data-image-grab-ui", "1");
 document.addEventListener(
   "contextmenu",
   (e) => { last = { x: e.clientX, y: e.clientY, target: e.target }; },
@@ -227,10 +231,8 @@ function container() {
   return document.documentElement;
 }
 
-// The button straddles the image corner nearest the pointer, so it stays clear of the enlarge and
-// share buttons that sites put just inside the corners. It stays on that corner while the pointer is
-// near it, and moves to the nearest corner once the pointer is far away.
-let placedFor = null, corner = { right: true, bottom: false };
+// One button, always on the bottom-left corner of the picture, centered on the corner so it stays
+// clear of the enlarge and share buttons sites put just inside the other corners.
 const HALF = 18;
 
 function place(img) {
@@ -238,17 +240,8 @@ function place(img) {
   const c = container();
   if (host.parentNode !== c) c.appendChild(host);
   const r = img.getBoundingClientRect();
-  const cx = parseFloat(button.style.left) + HALF;
-  const cy = parseFloat(button.style.top) + HALF;
-  const away = !button.classList.contains("show") || isNaN(cx) || Math.hypot(mouse.x - cx, mouse.y - cy) > 120;
-  if (img !== placedFor || away) {
-    corner = { right: mouse.x > r.left + r.width / 2, bottom: mouse.y > r.top + r.height / 2 };
-    placedFor = img;
-  }
-  const x = (corner.right ? r.right : r.left) - HALF;
-  const y = (corner.bottom ? r.bottom : r.top) - HALF;
-  button.style.left = Math.min(Math.max(x, 4), window.innerWidth - 2 * HALF - 4) + "px";
-  button.style.top = Math.min(Math.max(y, 4), window.innerHeight - 2 * HALF - 4) + "px";
+  button.style.left = Math.min(Math.max(r.left - HALF, 4), window.innerWidth - 2 * HALF - 4) + "px";
+  button.style.top = Math.min(Math.max(r.bottom - HALF, 4), window.innerHeight - 2 * HALF - 4) + "px";
   button.classList.add("show");
 }
 
@@ -270,6 +263,7 @@ function update() {
 document.addEventListener(
   "mousemove",
   (e) => {
+    if (!UI_ENABLED) return;
     mouse = { x: e.clientX, y: e.clientY };
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   },
@@ -284,7 +278,7 @@ function hidePreview() {
 }
 
 document.addEventListener("keydown", async (e) => {
-  if (e.key.toLowerCase() !== "z" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!UI_ENABLED || e.key.toLowerCase() !== "z" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
   const t = e.target;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
   // Works on any picture under the pointer, including small thumbnails the button skips.
