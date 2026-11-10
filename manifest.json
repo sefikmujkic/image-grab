@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Image Grab",
-  "version": "2.3",
+  "version": "2.4",
   "description": "Download the full-size original of any image or video: hover button, right-click, keyboard shortcut, preview, and a list of every image on the page.",
   "icons": {
     "16": "icon-16.png",

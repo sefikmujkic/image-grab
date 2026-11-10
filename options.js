@@ -1,3 +1,4 @@
+if (location.search.includes("embed")) document.documentElement.classList.add("embed");
 const $ = (id) => document.getElementById(id);
 const COMMAND = "download-hovered";
 const isMac = /Mac/.test(navigator.platform);

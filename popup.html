@@ -25,18 +25,33 @@
   button.go { border:0; border-radius:8px; padding:8px 14px; background:var(--accent); color:var(--accent-fg); font:600 13px system-ui; cursor:pointer; }
   button.go:disabled { opacity:.4; cursor:default; }
   .empty { padding:28px 14px; text-align:center; color:var(--muted); }
+  .head-actions { display:flex; align-items:center; gap:12px; }
+  .icon-btn { display:grid; place-items:center; width:28px; height:28px; border:0; border-radius:8px; background:none; color:var(--muted); cursor:pointer; }
+  .icon-btn:hover { background:var(--line); color:var(--fg); }
+  .icon-btn svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .text-btn { border:0; background:none; padding:4px 2px; color:var(--fg); font:600 13px system-ui; cursor:pointer; }
+  #settingsView { height:470px; }
+  #settingsView iframe { width:100%; height:100%; border:0; display:block; }
+  [hidden] { display:none !important; }
 </style>
 </head>
 <body>
 <header>
-  <strong>Images on this page</strong>
-  <label><input type="checkbox" id="all"> Select all</label>
+  <strong id="title">Images on this page</strong>
+  <div class="head-actions" id="listActions">
+    <label><input type="checkbox" id="all"> Select all</label>
+    <button class="icon-btn" id="gear" type="button" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+  <button class="text-btn" id="done" type="button" hidden>Done</button>
 </header>
-<main><div class="grid" id="grid"></div><div class="empty" id="empty" hidden></div></main>
-<footer>
+<main id="listView"><div class="grid" id="grid"></div><div class="empty" id="empty" hidden></div></main>
+<footer id="listFooter">
   <span id="status"></span>
   <button class="go" id="go" disabled>Download</button>
 </footer>
+<div id="settingsView" hidden></div>
 <script src="popup.js"></script>
 </body>
 </html>

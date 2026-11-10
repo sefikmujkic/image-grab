@@ -65,3 +65,28 @@ go.addEventListener("click", async () => {
   }
   go.disabled = false;
 });
+
+// Settings: the same page as the add-ons page, shown inside the popup.
+const gear = document.getElementById("gear");
+const done = document.getElementById("done");
+const titleEl = document.getElementById("title");
+const faces = {
+  list: [document.getElementById("listView"), document.getElementById("listFooter"), document.getElementById("listActions")],
+  settings: [document.getElementById("settingsView"), done],
+};
+
+function showFace(name) {
+  const other = name === "list" ? "settings" : "list";
+  faces[name].forEach((el) => (el.hidden = false));
+  faces[other].forEach((el) => (el.hidden = true));
+  titleEl.textContent = name === "list" ? "Images on this page" : "Settings";
+  if (name === "settings" && !document.querySelector("#settingsView iframe")) {
+    const frame = document.createElement("iframe");
+    frame.src = "options.html?embed";
+    frame.title = "Settings";
+    document.getElementById("settingsView").appendChild(frame);
+  }
+}
+
+gear.addEventListener("click", () => showFace("settings"));
+done.addEventListener("click", () => showFace("list"));

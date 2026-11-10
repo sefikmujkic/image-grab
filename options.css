@@ -53,3 +53,12 @@ input[type="text"], textarea { width: 100%; max-width: 260px; border: 0; border-
 textarea { max-width: none; resize: vertical; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; }
 input::placeholder, textarea::placeholder { color: var(--muted); }
 .row input[type="text"] { text-align: right; }
+
+/* Inside the toolbar popup */
+.embed body { background: transparent; }
+.embed main { max-width: none; padding: 12px 12px 20px; }
+.embed header { display: none; }
+.embed section { margin-bottom: 20px; }
+.embed .row { padding: 8px 12px; gap: 10px; }
+.embed .seg button { padding: 5px 10px; font-size: 12px; }
+.embed input[type="text"] { max-width: 150px; }
