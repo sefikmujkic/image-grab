@@ -213,7 +213,6 @@ async function downloadCurrent() {
 
 function hide() {
   current = null;
-  hidePreview();
   if (button) button.classList.remove("show");
 }
 
@@ -264,7 +263,6 @@ function update() {
     return r.width >= MIN_SIZE && r.height >= MIN_SIZE;
   });
   if (!img) return hide();
-  if (img !== current) hidePreview();
   current = img;
   place(img);
 }
@@ -289,13 +287,21 @@ document.addEventListener("keydown", async (e) => {
   if (e.key.toLowerCase() !== "z" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
   const t = e.target;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-  if (!current || current.tagName !== "IMG") return;
+  // Works on any picture under the pointer, including small thumbnails the button skips.
+  const img = document.elementsFromPoint(mouse.x, mouse.y).find((el) => {
+    if (el.tagName !== "IMG") return false;
+    const r = el.getBoundingClientRect();
+    return r.width >= 24 && r.height >= 24;
+  });
+  if (!img) return;
+  ensureButton();
+  const c = container();
+  if (host.parentNode !== c) c.appendChild(host);
   previewing = true;
-  const img = current;
   preview.src = img.currentSrc || img.src;
   preview.classList.add("show");
   const url = await bestFor(img, img.currentSrc || img.src);
-  if (previewing && current === img && preview.src !== url) preview.src = url;
+  if (previewing && preview.src !== url) preview.src = url;
 }, true);
 document.addEventListener("keyup", (e) => { if (e.key.toLowerCase() === "z") hidePreview(); }, true);
 window.addEventListener("blur", hidePreview);
