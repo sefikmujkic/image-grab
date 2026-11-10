@@ -85,7 +85,28 @@ function bestFor(img, fallback) {
   return resolved.get(img).then((u) => u || fallback || img.currentSrc || img.src);
 }
 
-const send = (url) => browser.runtime.sendMessage({ type: "download", url });
+// Saves a file in the page itself, with the page's cookies and referrer. Used when the
+// background download is refused (hotlink protection, logged-in images).
+async function blobSave(url) {
+  const r = await fetch(url, { credentials: "include" });
+  if (!r.ok) throw new Error("http " + r.status);
+  const blob = await r.blob();
+  let name = decodeURIComponent((new URL(url).pathname.split("/").pop() || "image")).replace(/[^\w.\- ]+/g, "_");
+  if (!/\.\w{2,5}$/.test(name)) name += "." + ((blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg").split("+")[0]);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.documentElement.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+async function send(url, fallback) {
+  const ok = await browser.runtime.sendMessage({ type: "download", url, fallback });
+  if (ok) return;
+  try { await blobSave(url); } catch { if (fallback && fallback !== url) await blobSave(fallback); }
+}
 
 // ---- Messages from the background page and the popup ----
 let listed = [];
@@ -122,7 +143,7 @@ browser.runtime.onMessage.addListener((msg) => {
       while (queue.length) {
         const im = listed[queue.shift()];
         if (!im) continue;
-        try { await send(await bestFor(im, im.currentSrc || im.src)); count++; } catch {}
+        try { await send(await bestFor(im, im.currentSrc || im.src), im.currentSrc || im.src); count++; } catch {}
       }
     };
     return Promise.all([worker(), worker(), worker()]).then(() => ({ count }));
@@ -175,7 +196,7 @@ async function downloadCurrent() {
   busy = true;
   button.style.opacity = ".5";
   try {
-    await send(await bestFor(current, current.currentSrc || current.src));
+    await send(await bestFor(current, current.currentSrc || current.src), current.currentSrc || current.src);
     button.classList.add("done");
     setTimeout(() => button && button.classList.remove("done"), 1200);
   } finally {
@@ -201,15 +222,28 @@ function container() {
   return document.documentElement;
 }
 
+// The button straddles the image corner nearest the pointer, so it stays clear of the enlarge and
+// share buttons that sites put just inside the corners. It stays on that corner while the pointer is
+// near it, and moves to the nearest corner once the pointer is far away.
+let placedFor = null, corner = { right: true, bottom: false };
+const HALF = 18;
+
 function place(img) {
   ensureButton();
   const c = container();
   if (host.parentNode !== c) c.appendChild(host);
   const r = img.getBoundingClientRect();
-  const left = Math.min(Math.max(r.right - 44, r.left + 8), window.innerWidth - 44);
-  const top = Math.min(Math.max(r.top + 8, 8), window.innerHeight - 44);
-  button.style.left = left + "px";
-  button.style.top = top + "px";
+  const cx = parseFloat(button.style.left) + HALF;
+  const cy = parseFloat(button.style.top) + HALF;
+  const away = !button.classList.contains("show") || isNaN(cx) || Math.hypot(mouse.x - cx, mouse.y - cy) > 120;
+  if (img !== placedFor || away) {
+    corner = { right: mouse.x > r.left + r.width / 2, bottom: mouse.y > r.top + r.height / 2 };
+    placedFor = img;
+  }
+  const x = (corner.right ? r.right : r.left) - HALF;
+  const y = (corner.bottom ? r.bottom : r.top) - HALF;
+  button.style.left = Math.min(Math.max(x, 4), window.innerWidth - 2 * HALF - 4) + "px";
+  button.style.top = Math.min(Math.max(y, 4), window.innerHeight - 2 * HALF - 4) + "px";
   button.classList.add("show");
 }
 

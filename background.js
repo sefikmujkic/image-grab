@@ -8,13 +8,26 @@ browser.runtime.onInstalled.addListener(() => {
   });
 });
 
-async function save(url, fallback) {
+// Resolves true if the file was really saved. downloads.download() succeeds as soon as the
+// download starts, so a 403 or hotlink block only shows up later as an interrupted state.
+async function tryDownload(url) {
   try {
-    await browser.downloads.download({ url, saveAs: false });
+    const id = await browser.downloads.download({ url, saveAs: false });
+    for (let i = 0; i < 240; i++) {
+      const [d] = await browser.downloads.search({ id });
+      if (d && d.state === "complete") return true;
+      if (!d || d.state === "interrupted") return false;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return true;
   } catch (e) {
-    // some blob:/data: URLs are refused; fall back to the displayed image
-    if (fallback && fallback !== url) await browser.downloads.download({ url: fallback });
+    return false;
   }
+}
+
+async function save(url, fallback) {
+  if (await tryDownload(url)) return true;
+  return !!fallback && fallback !== url && (await tryDownload(fallback));
 }
 
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -41,5 +54,5 @@ browser.commands.onCommand.addListener(async (command) => {
 });
 
 browser.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.type === "download" && msg.url) return save(msg.url);
+  if (msg && msg.type === "download" && msg.url) return save(msg.url, msg.fallback);
 });
