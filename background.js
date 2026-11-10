@@ -33,6 +33,13 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   await save(url, info.srcUrl);
 });
 
+// Keyboard shortcut: every frame checks whether the pointer is over a picture.
+browser.commands.onCommand.addListener(async (command) => {
+  if (command !== "download-hovered") return;
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (tab) browser.tabs.sendMessage(tab.id, { type: "hotkey" }).catch(() => {});
+});
+
 browser.runtime.onMessage.addListener((msg) => {
   if (msg && msg.type === "download" && msg.url) return save(msg.url);
 });

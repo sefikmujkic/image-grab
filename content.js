@@ -1,4 +1,6 @@
-// Finds the largest version of an image (or the file behind a video), and shows a download button on hover.
+// Finds the largest version of an image (or the file behind a video), shows a download button
+// on hover, a hold-to-preview on key Z, and lists every image on the page for the toolbar popup.
+// ruleCandidates() comes from rules.js, loaded first.
 let last = null;
 document.addEventListener(
   "contextmenu",
@@ -51,78 +53,140 @@ function candidatesFor(img) {
   c.push(...parseSrcset(img.srcset));
   if (img.currentSrc) c.push(img.currentSrc);
   if (img.src) c.push(img.src);
-  return [...new Set(c.map(abs).filter((u) => u && !u.startsWith("javascript:")))];
+  const base = [...new Set(c.map(abs).filter((u) => u && /^(https?:|data:image|blob:)/.test(u)))];
+  const guesses = base.filter((u) => u.startsWith("http")).flatMap((u) => ruleCandidates(u));
+  return [...new Set([...base, ...guesses])];
 }
 
 function measure(url) {
   return new Promise((resolve) => {
     const im = new Image();
-    const t = setTimeout(() => resolve(0), 5000);
+    const t = setTimeout(() => resolve(0), 6000);
     im.onload = () => { clearTimeout(t); resolve(im.naturalWidth * im.naturalHeight); };
     im.onerror = () => { clearTimeout(t); resolve(0); };
     im.src = url;
   });
 }
 
-async function bestFor(img, fallback) {
-  if (!img) return fallback;
-  if (img.tagName === "VIDEO") return videoUrl(img) || fallback;
-  const urls = candidatesFor(img);
-  const sizes = await Promise.all(urls.map(measure));
-  let bestUrl = null, bestSize = 0;
-  urls.forEach((u, i) => { if (sizes[i] > bestSize) { bestSize = sizes[i]; bestUrl = u; } });
-  return bestUrl || fallback || img.currentSrc || img.src;
+const resolved = new WeakMap();
+
+function bestFor(img, fallback) {
+  if (!img) return Promise.resolve(fallback);
+  if (img.tagName === "VIDEO") return Promise.resolve(videoUrl(img) || fallback);
+  if (!resolved.has(img)) {
+    resolved.set(img, (async () => {
+      const urls = candidatesFor(img);
+      const sizes = await Promise.all(urls.map(measure));
+      let bestUrl = null, bestSize = 0;
+      urls.forEach((u, i) => { if (sizes[i] > bestSize) { bestSize = sizes[i]; bestUrl = u; } });
+      return bestUrl;
+    })());
+  }
+  return resolved.get(img).then((u) => u || fallback || img.currentSrc || img.src);
 }
 
-// Right-click menu path.
+const send = (url) => browser.runtime.sendMessage({ type: "download", url });
+
+// ---- Messages from the background page and the popup ----
+let listed = [];
+
 browser.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.type === "resolve") {
+  if (!msg) return;
+  if (msg.type === "resolve") {
     const img = last ? imageAt(last.x, last.y, last.target) : null;
     return bestFor(img, msg.fallback).then((url) => ({ url }));
   }
+  if (msg.type === "hotkey") {
+    if (current) downloadCurrent();
+    return;
+  }
+  if (msg.type === "listAll") {
+    const seen = new Set();
+    listed = [];
+    for (const im of document.images) {
+      const src = im.currentSrc || im.src;
+      const r = im.getBoundingClientRect();
+      const big = Math.max(im.naturalWidth, r.width) >= 100 && Math.max(im.naturalHeight, r.height) >= 100;
+      if (!src || !big || seen.has(src) || /^data:image\/svg/.test(src)) continue;
+      seen.add(src);
+      listed.push(im);
+    }
+    return Promise.resolve(
+      listed.map((im, i) => ({ i, thumb: im.currentSrc || im.src, w: im.naturalWidth, h: im.naturalHeight }))
+    );
+  }
+  if (msg.type === "downloadAll") {
+    const queue = [...msg.indices];
+    let count = 0;
+    const worker = async () => {
+      while (queue.length) {
+        const im = listed[queue.shift()];
+        if (!im) continue;
+        try { await send(await bestFor(im, im.currentSrc || im.src)); count++; } catch {}
+      }
+    };
+    return Promise.all([worker(), worker(), worker()]).then(() => ({ count }));
+  }
 });
 
-// Hover button path.
+// ---- Hover button ----
 const MIN_SIZE = 120;
-let host, button, current = null, ticking = false, mouse = { x: 0, y: 0 }, busy = false;
+let host, root, button, preview, current = null, ticking = false, mouse = { x: 0, y: 0 }, busy = false;
+let previewing = false;
 
 function ensureButton() {
   if (host) return;
   host = document.createElement("div");
   host.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;z-index:2147483647;";
-  const root = host.attachShadow({ mode: "closed" });
+  root = host.attachShadow({ mode: "closed" });
   root.innerHTML = `
     <style>
       button{position:fixed;display:none;width:36px;height:36px;padding:0;border:0;border-radius:18px;
         background:rgba(0,0,0,.72);color:#fff;cursor:pointer;align-items:center;justify-content:center;
-        box-shadow:0 1px 4px rgba(0,0,0,.4);font:600 13px system-ui,sans-serif;transition:background .15s}
+        box-shadow:0 1px 4px rgba(0,0,0,.4);transition:background .15s}
       button:hover{background:rgba(0,0,0,.9)}
       button.show{display:flex}
+      button.done{background:#16a34a}
       svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .ok{display:none}
+      button.done .arrow{display:none}
+      button.done .ok{display:block}
+      img{position:fixed;display:none;left:50%;top:50%;transform:translate(-50%,-50%);max-width:92vw;max-height:92vh;
+        object-fit:contain;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.55);background:#111;pointer-events:none}
+      img.show{display:block}
     </style>
-    <button title="Download original" aria-label="Download original">
-      <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 21h14"/></svg>
-    </button>`;
+    <button title="Download original (Alt+Shift+D)" aria-label="Download original">
+      <svg class="arrow" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 21h14"/></svg>
+      <svg class="ok" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+    </button>
+    <img alt="">`;
   button = root.querySelector("button");
-  button.addEventListener("click", async (e) => {
+  preview = root.querySelector("img");
+  button.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!current || busy) return;
-    busy = true;
-    button.style.opacity = ".5";
-    try {
-      const url = await bestFor(current, current.currentSrc || current.src);
-      await browser.runtime.sendMessage({ type: "download", url });
-    } finally {
-      busy = false;
-      button.style.opacity = "";
-    }
+    downloadCurrent();
   });
   (document.documentElement || document).appendChild(host);
 }
 
+async function downloadCurrent() {
+  if (!current || busy) return;
+  busy = true;
+  button.style.opacity = ".5";
+  try {
+    await send(await bestFor(current, current.currentSrc || current.src));
+    button.classList.add("done");
+    setTimeout(() => button && button.classList.remove("done"), 1200);
+  } finally {
+    busy = false;
+    button.style.opacity = "";
+  }
+}
+
 function hide() {
   current = null;
+  hidePreview();
   if (button) button.classList.remove("show");
 }
 
@@ -160,6 +224,7 @@ function update() {
     return r.width >= MIN_SIZE && r.height >= MIN_SIZE;
   });
   if (!img) return hide();
+  if (img !== current) hidePreview();
   current = img;
   place(img);
 }
@@ -173,3 +238,24 @@ document.addEventListener(
   { passive: true }
 );
 window.addEventListener("scroll", () => { if (current) hide(); }, { passive: true, capture: true });
+
+// ---- Hold Z over an image to preview the full-size version ----
+function hidePreview() {
+  previewing = false;
+  if (preview) preview.classList.remove("show");
+}
+
+document.addEventListener("keydown", async (e) => {
+  if (e.key.toLowerCase() !== "z" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  if (!current || current.tagName !== "IMG") return;
+  previewing = true;
+  const img = current;
+  preview.src = img.currentSrc || img.src;
+  preview.classList.add("show");
+  const url = await bestFor(img, img.currentSrc || img.src);
+  if (previewing && current === img && preview.src !== url) preview.src = url;
+}, true);
+document.addEventListener("keyup", (e) => { if (e.key.toLowerCase() === "z") hidePreview(); }, true);
+window.addEventListener("blur", hidePreview);

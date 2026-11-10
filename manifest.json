@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Image Grab",
-  "version": "1.2",
-  "description": "Hover any picture or video, click the download button, get the full-size original instead of the thumbnail.",
+  "version": "2.0",
+  "description": "Download the full-size original of any image or video: hover button, right-click, keyboard shortcut, preview, and a list of every image on the page.",
   "icons": { "16": "icon.svg", "32": "icon.svg", "48": "icon.svg", "96": "icon.svg", "128": "icon.svg" },
   "browser_specific_settings": {
     "gecko": { "id": "image-grab@hstep.dev", "strict_min_version": "115.0" }
@@ -10,7 +10,18 @@
   "permissions": ["contextMenus", "downloads"],
   "host_permissions": ["<all_urls>"],
   "background": { "scripts": ["background.js"] },
+  "action": {
+    "default_icon": "icon.svg",
+    "default_title": "Images on this page",
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "download-hovered": {
+      "suggested_key": { "default": "Alt+Shift+D" },
+      "description": "Download the image or video under the pointer"
+    }
+  },
   "content_scripts": [
-    { "matches": ["<all_urls>"], "js": ["content.js"], "all_frames": true, "run_at": "document_start" }
+    { "matches": ["<all_urls>"], "js": ["rules.js", "content.js"], "all_frames": true, "run_at": "document_start" }
   ]
 }
