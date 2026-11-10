@@ -117,6 +117,12 @@ browser.runtime.onMessage.addListener((msg) => {
     const img = last ? imageAt(last.x, last.y, last.target) : null;
     return bestFor(img, msg.fallback).then((url) => ({ url }));
   }
+  if (msg.type === "probe") {
+    const el = last ? imageAt(last.x, last.y, last.target) : null;
+    const r = el && el.getBoundingClientRect();
+    const ok = el && r.width >= 50 && r.height >= 50 && (el.tagName === "IMG" || videoUrl(el));
+    return Promise.resolve({ has: !!ok });
+  }
   if (msg.type === "hotkey") {
     if (current) downloadCurrent();
     return;

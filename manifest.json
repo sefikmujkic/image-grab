@@ -23,6 +23,7 @@
   },
   "permissions": [
     "contextMenus",
+    "menus",
     "downloads"
   ],
   "host_permissions": [

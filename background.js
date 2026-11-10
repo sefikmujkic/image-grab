@@ -4,7 +4,8 @@ browser.runtime.onInstalled.addListener(() => {
   browser.contextMenus.create({
     id: MENU_ID,
     title: "Download original",
-    contexts: ["image", "video"],
+    contexts: ["all"],
+    visible: false,
   });
 });
 
@@ -30,6 +31,20 @@ async function save(url, fallback) {
   return !!fallback && fallback !== url && (await tryDownload(fallback));
 }
 
+// Sites often cover a picture with a link, so the browser sees a link, not an image. Show the item
+// whenever a picture (or direct video) sits under the pointer, whatever the browser says it is.
+browser.menus.onShown.addListener(async (info, tab) => {
+  let show = info.contexts.includes("image") || info.contexts.includes("video");
+  if (!show && tab) {
+    try {
+      const res = await browser.tabs.sendMessage(tab.id, { type: "probe" }, { frameId: info.frameId });
+      show = !!(res && res.has);
+    } catch (e) {}
+  }
+  await browser.menus.update(MENU_ID, { visible: show });
+  browser.menus.refresh();
+});
+
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID) return;
   let url = info.srcUrl;
@@ -43,7 +58,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   } catch (e) {
     // content script not reachable (e.g. restricted page): use the plain image URL
   }
-  await save(url, info.srcUrl);
+  if (url) await save(url, info.srcUrl);
 });
 
 // Keyboard shortcut: every frame checks whether the pointer is over a picture.
