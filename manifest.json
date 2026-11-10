@@ -59,5 +59,6 @@
       "all_frames": true,
       "run_at": "document_start"
     }
-  ]
+  ],
+  "homepage_url": "https://github.com/sefikmujkic/image-grab"
 }
