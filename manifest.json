@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Image Grab",
-  "version": "2.1",
+  "version": "2.2",
   "description": "Download the full-size original of any image or video: hover button, right-click, keyboard shortcut, preview, and a list of every image on the page.",
   "icons": {
     "16": "icon-16.png",
@@ -24,13 +24,15 @@
   "permissions": [
     "contextMenus",
     "menus",
-    "downloads"
+    "downloads",
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "background": {
     "scripts": [
+      "settings.js",
       "background.js"
     ]
   },
@@ -59,6 +61,7 @@
         "<all_urls>"
       ],
       "js": [
+        "settings.js",
         "rules.js",
         "content.js"
       ],
@@ -66,5 +69,9 @@
       "run_at": "document_start"
     }
   ],
-  "homepage_url": "https://github.com/sefikmujkic/image-grab"
+  "homepage_url": "https://github.com/sefikmujkic/image-grab",
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
 }

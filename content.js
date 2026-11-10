@@ -6,6 +6,13 @@ let last = null;
 // one button ever appears and a shortcut press doesn't download twice.
 const UI_ENABLED = !document.documentElement.hasAttribute("data-image-grab-ui");
 if (UI_ENABLED) document.documentElement.setAttribute("data-image-grab-ui", "1");
+
+// Settings come from settings.js; they load once and update live when changed on the settings page.
+let S = { ...IG_DEFAULTS };
+const applySettings = () => igSettings().then((s) => { S = s; if (!buttonAllowed()) hide(); });
+const buttonAllowed = () => S.showButton && !igBlocked(location.hostname, S.blockedSites);
+applySettings();
+browser.storage.onChanged.addListener(applySettings);
 document.addEventListener(
   "contextmenu",
   (e) => { last = { x: e.clientX, y: e.clientY, target: e.target }; },
@@ -128,7 +135,9 @@ browser.runtime.onMessage.addListener((msg) => {
     return Promise.resolve({ has: !!ok });
   }
   if (msg.type === "hotkey") {
-    if (current) downloadCurrent();
+    if (!UI_ENABLED || !pointerInside) return;
+    const el = mediaAtPointer();
+    if (el) downloadCurrent(el);
     return;
   }
   if (msg.type === "listAll") {
@@ -161,9 +170,9 @@ browser.runtime.onMessage.addListener((msg) => {
 });
 
 // ---- Hover button ----
-const MIN_SIZE = 120;
 let host, root, button, preview, current = null, ticking = false, mouse = { x: 0, y: 0 }, busy = false;
-let previewing = false;
+let previewing = false, pointerInside = false;
+document.documentElement.addEventListener("mouseleave", () => { pointerInside = false; });
 
 function ensureButton() {
   if (host) return;
@@ -186,7 +195,7 @@ function ensureButton() {
         object-fit:contain;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.55);background:#111;pointer-events:none}
       img.show{display:block}
     </style>
-    <button title="Download original (Alt+Shift+D)" aria-label="Download original">
+    <button title="Download original" aria-label="Download original">
       <svg class="arrow" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 21h14"/></svg>
       <svg class="ok" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
     </button>
@@ -201,18 +210,30 @@ function ensureButton() {
   (document.documentElement || document).appendChild(host);
 }
 
-async function downloadCurrent() {
-  if (!current || busy) return;
+async function downloadCurrent(el = current) {
+  if (!el || busy) return;
   busy = true;
-  button.style.opacity = ".5";
+  if (button) button.style.opacity = ".5";
   try {
-    await send(await bestFor(current, current.currentSrc || current.src), current.currentSrc || current.src);
-    button.classList.add("done");
-    setTimeout(() => button && button.classList.remove("done"), 1200);
+    await send(await bestFor(el, el.currentSrc || el.src), el.currentSrc || el.src);
+    if (button && el === current) {
+      button.classList.add("done");
+      setTimeout(() => button && button.classList.remove("done"), 1200);
+    }
   } finally {
     busy = false;
-    button.style.opacity = "";
+    if (button) button.style.opacity = "";
   }
+}
+
+// The picture or direct-file video under the pointer, for the keyboard shortcut.
+function mediaAtPointer() {
+  return document.elementsFromPoint(mouse.x, mouse.y).find((el) => {
+    if (!isMedia(el)) return false;
+    if (el.tagName === "VIDEO" && !videoUrl(el)) return false;
+    const r = el.getBoundingClientRect();
+    return r.width >= 24 && r.height >= 24;
+  });
 }
 
 function hide() {
@@ -231,8 +252,8 @@ function container() {
   return document.documentElement;
 }
 
-// One button, always on the bottom-left corner of the picture, centered on the corner so it stays
-// clear of the enlarge and share buttons sites put just inside the other corners.
+// One button, centered on a corner of the picture (bottom-left unless the settings say otherwise), so it
+// stays clear of the enlarge and share buttons sites put just inside the corners.
 const HALF = 18;
 
 function place(img) {
@@ -240,20 +261,23 @@ function place(img) {
   const c = container();
   if (host.parentNode !== c) c.appendChild(host);
   const r = img.getBoundingClientRect();
-  button.style.left = Math.min(Math.max(r.left - HALF, 4), window.innerWidth - 2 * HALF - 4) + "px";
-  button.style.top = Math.min(Math.max(r.bottom - HALF, 4), window.innerHeight - 2 * HALF - 4) + "px";
+  const right = /right/.test(S.corner), top = /^top/.test(S.corner);
+  const x = (right ? r.right : r.left) - HALF, y = (top ? r.top : r.bottom) - HALF;
+  button.style.left = Math.min(Math.max(x, 4), window.innerWidth - 2 * HALF - 4) + "px";
+  button.style.top = Math.min(Math.max(y, 4), window.innerHeight - 2 * HALF - 4) + "px";
   button.classList.add("show");
 }
 
 function update() {
   ticking = false;
+  if (!buttonAllowed()) return hide();
   const stack = document.elementsFromPoint(mouse.x, mouse.y);
   if (host && stack.includes(host)) return; // pointer is on the button
   const img = stack.find((el) => {
     if (!isMedia(el)) return false;
-    if (el.tagName === "VIDEO" && !videoUrl(el)) return false;
+    if (el.tagName === "VIDEO" && (!S.showOnVideos || !videoUrl(el))) return false;
     const r = el.getBoundingClientRect();
-    return r.width >= MIN_SIZE && r.height >= MIN_SIZE;
+    return r.width >= S.minSize && r.height >= S.minSize;
   });
   if (!img) return hide();
   current = img;
@@ -265,20 +289,22 @@ document.addEventListener(
   (e) => {
     if (!UI_ENABLED) return;
     mouse = { x: e.clientX, y: e.clientY };
+    pointerInside = true;
+    if (!buttonAllowed()) return;
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   },
   { passive: true }
 );
 window.addEventListener("scroll", () => { if (current) hide(); }, { passive: true, capture: true });
 
-// ---- Hold Z over an image to preview the full-size version ----
+// ---- Hold a key (Z by default) over an image to preview the full-size version ----
 function hidePreview() {
   previewing = false;
   if (preview) preview.classList.remove("show");
 }
 
 document.addEventListener("keydown", async (e) => {
-  if (!UI_ENABLED || e.key.toLowerCase() !== "z" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!UI_ENABLED || !S.preview || igBlocked(location.hostname, S.blockedSites) || e.key.toLowerCase() !== S.previewKey || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
   const t = e.target;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
   // Works on any picture under the pointer, including small thumbnails the button skips.
@@ -297,5 +323,5 @@ document.addEventListener("keydown", async (e) => {
   const url = await bestFor(img, img.currentSrc || img.src);
   if (previewing && preview.src !== url) preview.src = url;
 }, true);
-document.addEventListener("keyup", (e) => { if (e.key.toLowerCase() === "z") hidePreview(); }, true);
+document.addEventListener("keyup", (e) => { if (e.key.toLowerCase() === S.previewKey) hidePreview(); }, true);
 window.addEventListener("blur", hidePreview);

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image Grab settings</title>
+<link rel="stylesheet" href="options.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Image Grab</h1>
+    <span id="saved" aria-live="polite"></span>
+  </header>
+
+  <section>
+    <h2>Button</h2>
+    <div class="row"><label for="showButton">Show the button on pictures</label><input type="checkbox" id="showButton" class="switch"></div>
+    <div class="row"><label for="showOnVideos">Show it on videos</label><input type="checkbox" id="showOnVideos" class="switch"></div>
+    <div class="row"><span>Corner</span>
+      <div class="seg" id="corner" role="radiogroup" aria-label="Corner">
+        <button type="button" data-value="bottom-left">Bottom left</button>
+        <button type="button" data-value="bottom-right">Bottom right</button>
+        <button type="button" data-value="top-left">Top left</button>
+        <button type="button" data-value="top-right">Top right</button>
+      </div>
+    </div>
+    <div class="row"><span>Smallest picture</span>
+      <div class="seg" id="minSize" role="radiogroup" aria-label="Smallest picture">
+        <button type="button" data-value="80">Small</button>
+        <button type="button" data-value="120">Medium</button>
+        <button type="button" data-value="200">Large</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Preview</h2>
+    <div class="row"><label for="preview">Hold a key to preview</label><input type="checkbox" id="preview" class="switch"></div>
+    <div class="row"><span>Key</span><button type="button" class="chip" id="previewKey"></button></div>
+  </section>
+
+  <section>
+    <h2>Right-click</h2>
+    <div class="row"><label for="rightClick">Show Download original</label><input type="checkbox" id="rightClick" class="switch"></div>
+  </section>
+
+  <section>
+    <h2>Shortcut</h2>
+    <div class="row"><span>Download under the pointer</span>
+      <div class="actions">
+        <button type="button" class="chip" id="shortcut"></button>
+        <button type="button" class="link" id="shortcutReset">Reset</button>
+        <button type="button" class="link" id="shortcutOff">Turn off</button>
+      </div>
+    </div>
+    <p class="error" id="shortcutError" hidden></p>
+  </section>
+
+  <section>
+    <h2>Saving</h2>
+    <div class="row"><label for="askWhere">Ask where to save</label><input type="checkbox" id="askWhere" class="switch"></div>
+    <div class="row"><label for="folder">Subfolder</label><input type="text" id="folder" placeholder="Downloads" autocomplete="off" spellcheck="false"></div>
+  </section>
+
+  <section>
+    <h2>Sites</h2>
+    <div class="row stack"><label for="blockedSites">No button on these sites</label><textarea id="blockedSites" rows="4" placeholder="example.com" spellcheck="false"></textarea></div>
+  </section>
+</main>
+<script src="settings.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

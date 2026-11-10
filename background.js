@@ -11,9 +11,26 @@ browser.runtime.onInstalled.addListener(() => {
 
 // Resolves true if the file was really saved. downloads.download() succeeds as soon as the
 // download starts, so a 403 or hotlink block only shows up later as an interrupted state.
-async function tryDownload(url) {
+function filenameFor(url, folder) {
   try {
-    const id = await browser.downloads.download({ url, saveAs: false });
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return null;
+    let name = decodeURIComponent(u.pathname.split("/").pop() || "image").replace(/[\\/:*?"<>|]+/g, "_");
+    if (!/\.\w{2,5}$/.test(name)) name += "." + (u.searchParams.get("format") || "jpg");
+    const dir = folder.replace(/\\/g, "/").split("/").map((p) => p.trim()).filter((p) => p && p !== "." && p !== "..").join("/");
+    return dir ? dir + "/" + name : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function tryDownload(url, s) {
+  try {
+    const options = { url };
+    if (s.saveMode === "ask") options.saveAs = true;
+    const filename = s.folder ? filenameFor(url, s.folder) : null;
+    if (filename) options.filename = filename;
+    const id = await browser.downloads.download(options);
     for (let i = 0; i < 240; i++) {
       const [d] = await browser.downloads.search({ id });
       if (d && d.state === "complete") return true;
@@ -27,15 +44,17 @@ async function tryDownload(url) {
 }
 
 async function save(url, fallback) {
-  if (await tryDownload(url)) return true;
-  return !!fallback && fallback !== url && (await tryDownload(fallback));
+  const s = await igSettings();
+  if (await tryDownload(url, s)) return true;
+  return !!fallback && fallback !== url && (await tryDownload(fallback, s));
 }
 
 // Sites often cover a picture with a link, so the browser sees a link, not an image. Show the item
 // whenever a picture (or direct video) sits under the pointer, whatever the browser says it is.
 browser.menus.onShown.addListener(async (info, tab) => {
-  let show = info.contexts.includes("image") || info.contexts.includes("video");
-  if (!show && tab) {
+  const s = await igSettings();
+  let show = s.rightClick && (info.contexts.includes("image") || info.contexts.includes("video"));
+  if (s.rightClick && !show && tab) {
     try {
       const res = await browser.tabs.sendMessage(tab.id, { type: "probe" }, { frameId: info.frameId });
       show = !!(res && res.has);

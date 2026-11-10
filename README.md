@@ -10,6 +10,7 @@ A Firefox extension that downloads the full-size original of any image or video,
 - Alt+Shift+D downloads whatever is under the pointer.
 - The toolbar button lists every image on the page so you can save several at once.
 - Works inside full-screen galleries and lightboxes.
+- A settings page turns each of these on or off and changes the shortcut, preview key, button corner, save folder and blocked sites.
 
 ## How it finds the original
 
@@ -32,6 +33,7 @@ the image addresses the page already references.
 | `content.js` | Hover button, preview, and picking the best version |
 | `rules.js` | Thumbnail-to-original guesses for common sites |
 | `popup.html`, `popup.js` | Toolbar list of every image on the page |
+| `settings.js`, `options.html`, `options.css`, `options.js` | Defaults and the settings page |
 | `icon.svg` | Icon |
 
 There is no build step. The files in this repository are the files in the extension.
