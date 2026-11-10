@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Image Grab",
+  "version": "1.2",
+  "description": "Hover any picture or video, click the download button, get the full-size original instead of the thumbnail.",
+  "icons": { "16": "icon.svg", "32": "icon.svg", "48": "icon.svg", "96": "icon.svg", "128": "icon.svg" },
+  "browser_specific_settings": {
+    "gecko": { "id": "image-grab@hstep.dev", "strict_min_version": "115.0" }
+  },
+  "permissions": ["contextMenus", "downloads"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "scripts": ["background.js"] },
+  "content_scripts": [
+    { "matches": ["<all_urls>"], "js": ["content.js"], "all_frames": true, "run_at": "document_start" }
+  ]
+}
