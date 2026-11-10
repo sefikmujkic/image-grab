@@ -41,7 +41,7 @@ function showEmpty(text) {
     });
     grid.appendChild(b);
   }
-  status.textContent = `${items.length} found`;
+  status.textContent = `${items.length} found on the whole page`;
 })();
 
 all.addEventListener("change", () => {
